@@ -38,10 +38,12 @@ class MscDevice(UsbDevice):
 
  SONY_SENSE_NOT_READY = (0x02, 0x04, 0x01)
  SONY_SENSE_NOT_FOUND = (0x05, 0x24, 0x00)
+ # Pre-PMCA bodies (e.g. NEX-5) reject the 0x7a vendor opcode itself
+ SONY_SENSE_INVALID_OPCODE = (0x05, 0x20, 0x00)
 
  def _checkResponse(self, response):
   if response != MSC_SENSE_OK:
-   if response == self.SONY_SENSE_NOT_FOUND:
+   if response in (self.SONY_SENSE_NOT_FOUND, self.SONY_SENSE_INVALID_OPCODE):
     raise InvalidCommandException()
    else:
     raise UnknownMscException('SCSI sense %x %x %x' % response)

@@ -122,10 +122,11 @@ def install(dev, host, port, xpdData, statusFunc=None):
    elif isinstance(message, SslSendDataMessage) and sock and message.connectionId == connectionId:
     # The camera wants to send data over the socket
     sock.sendall(message.data)
-   elif isinstance(message, SslEndMessage) and sock and message.connectionId == connectionId:
-    # The camera wants to close the socket
-    _close_sock(sock)
-    sock = None
+   elif isinstance(message, SslEndMessage):
+    # The camera closes a socket. After we closed it on EOF the camera echoes the end; that must not abort the install.
+    if sock and message.connectionId == connectionId:
+     _close_sock(sock)
+     sock = None
    elif isinstance(message, RequestMessage):
     # The camera sends a REST message
     request = _parseRequest(message.data)

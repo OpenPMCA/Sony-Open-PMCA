@@ -100,6 +100,12 @@ class MscDriverContractTest(unittest.TestCase):
   with self.assertRaises(InvalidCommandException):
    device.getDeviceInfo()
 
+ def test_msc_device_maps_invalid_opcode_sense_from_pre_pmca_bodies(self):
+  driver = StrictMscDriver()
+  driver.inquiry_sense = MscDevice.SONY_SENSE_INVALID_OPCODE
+  with self.assertRaises(InvalidCommandException):
+   MscDevice(driver).getDeviceInfo()
+
  def test_msc_device_maps_other_sense_failure_to_unknown_msc_exception(self):
   driver = StrictMscDriver()
   driver.inquiry_sense = (0x02, 0x04, 0x01) # Not ready

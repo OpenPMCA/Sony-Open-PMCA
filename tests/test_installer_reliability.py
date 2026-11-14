@@ -140,6 +140,19 @@ class InstallerReliabilityTest(unittest.TestCase):
   dev.sendSslEnd.assert_called_once_with(7)
   self.assertGreaterEqual(fake_sock.close.call_count, 1)
 
+ def test_installer_ignores_camera_ssl_end_for_an_already_closed_socket(self):
+  """The camera echoes SslEnd after the host closed the relay; the later /task/complete must still be reached."""
+  dev = Mock()
+  dev.sendRequest.return_value = _make_rest_response(0, 'ok')
+  dev.receive.side_effect = [
+   SslEndMessage(5),
+   RequestMessage(_make_rest_request('/task/complete', {'resultCode': 0, 'message': 'Successfully completed'})),
+  ]
+  with patch.object(installer, '_sleep', Mock(), create=True):
+   result = installer.install(dev, '127.0.0.1', 4443, b'xpd')
+  self.assertEqual(result.code, 0)
+  dev.sendEnd.assert_called_once_with()
+
  def test_local_market_server_ephemeral_port_succeeds_when_4443_is_occupied(self):
   """Verify installer LocalMarketServer(port=0) succeeds on a non-4443 ephemeral port when 4443 is occupied."""
   cert_file = str(Path(repo_root) / 'certs/localtest.me.pem')
