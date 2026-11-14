@@ -3,6 +3,7 @@ name: Build and Verify Native Desktop Distribution
 on:
   push:
     branches: [ master, main ]
+    tags: [ 'v*' ]
   pull_request:
 
 permissions:
@@ -55,10 +56,10 @@ jobs:
       - name: Upload macOS distribution artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Sony-Open-PMCA-1.2.0-macos-arm64
+          name: dist-macos
           path: |
-            dist/Sony-Open-PMCA-1.2.0-macos-arm64.zip
-            dist/Sony-Open-PMCA-1.2.0-macos-arm64.dmg
+            dist/Sony-Open-PMCA-*-macos-arm64.zip
+            dist/Sony-Open-PMCA-*-macos-arm64.dmg
             dist/runtime-check.json
             Casks/sony-open-pmca.rb
           if-no-files-found: error
@@ -100,14 +101,14 @@ jobs:
       - name: Verify frozen runtime
         shell: pwsh
         run: |
-          python packaging/build.py verify --executable "dist\Sony-Open-PMCA-1.2.0-windows-x64.exe" --arch x64
+          python packaging/build.py verify --executable (Get-ChildItem "dist\Sony-Open-PMCA-*-windows-x64.exe").FullName --arch x64
 
       - name: Upload Windows distribution artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Sony-Open-PMCA-1.2.0-windows-x64
+          name: dist-windows
           path: |
-            dist/Sony-Open-PMCA-1.2.0-windows-x64.exe
+            dist/Sony-Open-PMCA-*-windows-x64.exe
             dist/runtime-check.json
           if-no-files-found: error
 
@@ -154,13 +155,60 @@ jobs:
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
         run: |
-          xvfb-run -a python packaging/build.py verify --executable dist/Sony-Open-PMCA-1.2.0-linux-x86_64.AppImage --arch x64
+          xvfb-run -a python packaging/build.py verify --executable "$(ls dist/Sony-Open-PMCA-*-linux-x86_64.AppImage)" --arch x64
 
       - name: Upload Linux distribution artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Sony-Open-PMCA-1.2.0-linux-x86_64
+          name: dist-linux
           path: |
-            dist/Sony-Open-PMCA-1.2.0-linux-x86_64.AppImage
+            dist/Sony-Open-PMCA-*-linux-x86_64.AppImage
             dist/runtime-check.json
           if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check the tag matches the package version
+        run: |
+          version="$(sed -n "s/^__version__ = '\(.*\)'/\1/p" pmca/__init__.py)"
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "Tag $GITHUB_REF_NAME does not match version $version"; exit 1; }
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: dist-*
+          merge-multiple: true
+
+      - name: Collect release files and checksums
+        run: |
+          mkdir release
+          find artifacts -type f -name 'Sony-Open-PMCA-*' -exec cp {} release/ \;
+          cp "$(find artifacts -type f -name sony-open-pmca.rb)" cask.rb
+          cd release && sha256sum Sony-Open-PMCA-* > SHA256SUMS && cat SHA256SUMS
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/* \
+            --repo "$GITHUB_REPOSITORY" --title "Sony Open PMCA ${GITHUB_REF_NAME#v}" --generate-notes
+
+      - name: Point the Homebrew cask at the released ZIP
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout -B main origin/main
+          cp cask.rb Casks/sony-open-pmca.rb
+          git add Casks/sony-open-pmca.rb
+          git diff --cached --quiet || { git commit -m "Cask: ${GITHUB_REF_NAME}"; git push origin main; }

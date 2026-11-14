@@ -1,7 +1,7 @@
 # Sony Open PMCA
 
 [![Native CI](https://github.com/OpenPMCA/Sony-Open-PMCA/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/OpenPMCA/Sony-Open-PMCA/actions/workflows/build.yml)
-[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](https://github.com/OpenPMCA/Sony-Open-PMCA/releases/tag/v1.2.0)
+[![Version](https://img.shields.io/github/v/release/OpenPMCA/Sony-Open-PMCA)](https://github.com/OpenPMCA/Sony-Open-PMCA/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE.txt)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
 
@@ -40,34 +40,20 @@ Only Sony cameras with the built-in Android-based PlayMemories Camera Apps subsy
 
 ## Installation & Downloads
 
-[v1.2.0 is published](https://github.com/OpenPMCA/Sony-Open-PMCA/releases/tag/v1.2.0), with native macOS/Windows/Linux builds, SHA-256 checksums and [sanitized release evidence](docs/release-validation-1.2.0.json). v1.1.0 remains available unchanged.
+Every release is built and tested by CI on all three platforms and published automatically from a version tag, with SHA-256 checksums. Get it from the [latest release](https://github.com/OpenPMCA/Sony-Open-PMCA/releases/latest).
 
-### macOS
-Built for Apple Silicon (`arm64`), requiring macOS 14 Sonoma or newer.
+| Platform | File | Notes |
+| :--- | :--- | :--- |
+| macOS (Apple Silicon) | `Sony-Open-PMCA-<version>-macos-arm64.dmg` | Open it and drag the app to Applications. Ad-hoc signed, not notarized: follow macOS's normal security prompts rather than disabling Gatekeeper. |
+| Windows (x64) | `Sony-Open-PMCA-<version>-windows-x64.exe` | Single file, no installer. Uses the Windows Portable Devices driver. |
+| Linux (x86_64) | `Sony-Open-PMCA-<version>-linux-x86_64.AppImage` | `chmod +x` and run. Built on Ubuntu 22.04: needs glibc 2.35 or newer. Without FUSE 2 run it with `--appimage-extract-and-run`. |
 
-* **Homebrew Cask** (Recommended):
-  ```bash
-  brew tap OpenPMCA/Sony-Open-PMCA https://github.com/OpenPMCA/Sony-Open-PMCA
-  brew install --cask sony-open-pmca
-  ```
-* **Disk image**: releases after 1.2.0 also ship `Sony-Open-PMCA-<version>-macos-arm64.dmg`; open it and drag the app to Applications.
-* **Manual Download**:
-  Download [`Sony-Open-PMCA-1.2.0-macos-arm64.zip`](https://github.com/OpenPMCA/Sony-Open-PMCA/releases/download/v1.2.0/Sony-Open-PMCA-1.2.0-macos-arm64.zip), extract it, and move `Sony Open PMCA.app` to `/Applications`. The Mac build is ad-hoc signed, not notarized; follow macOS's normal security prompts and report an exact refusal rather than disabling Gatekeeper or SIP.
+Homebrew:
 
-### Windows
-Standalone executable for 64-bit Windows, built and runtime-tested on the native Windows runner. Physical camera access still depends on the available USB backend.
-
-* Download [`Sony-Open-PMCA-1.2.0-windows-x64.exe`](https://github.com/OpenPMCA/Sony-Open-PMCA/releases/download/v1.2.0/Sony-Open-PMCA-1.2.0-windows-x64.exe) and run it directly without installing Python. The default Windows Portable Devices backend uses OS facilities; fallback transport or camera-driver problems need their own diagnosis.
-
-### Linux
-Portable AppImage for 64-bit Linux, built and runtime-tested on Ubuntu 22.04. Other distributions need compatible libraries and USB permissions; native CI is not a test of every distribution.
-
-* Download [`Sony-Open-PMCA-1.2.0-linux-x86_64.AppImage`](https://github.com/OpenPMCA/Sony-Open-PMCA/releases/download/v1.2.0/Sony-Open-PMCA-1.2.0-linux-x86_64.AppImage), make it executable, and run:
-  ```bash
-  chmod +x Sony-Open-PMCA-1.2.0-linux-x86_64.AppImage
-  ./Sony-Open-PMCA-1.2.0-linux-x86_64.AppImage
-  ```
-  The AppImage is built on Ubuntu 22.04, so it needs glibc 2.35 or newer. Distributions without FUSE 2 can run it with `--appimage-extract-and-run`.
+```bash
+brew tap OpenPMCA/Sony-Open-PMCA https://github.com/OpenPMCA/Sony-Open-PMCA
+brew install --cask sony-open-pmca
+```
 
 ---
 

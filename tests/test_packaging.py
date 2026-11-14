@@ -259,9 +259,14 @@ class WorkflowStructureTest(unittest.TestCase):
 
         # Workflow content string checks
         raw_text = WORKFLOW_PATH.read_text(encoding="utf-8")
-        self.assertNotIn("hub release", raw_text, "Workflow must not create releases")
-        self.assertNotIn("gh release", raw_text, "Workflow must not create releases")
-        self.assertNotIn("action-gh-release", raw_text, "Workflow must not create releases")
+        # Releases are created only by the tag-gated job that waits for all three builds
+        release = jobs.get("release", {})
+        self.assertEqual(sorted(release.get("needs", [])), ["build-linux", "build-macos", "build-windows"])
+        self.assertIn("refs/tags/v", release.get("if", ""))
+        self.assertEqual(release.get("permissions", {}).get("contents"), "write")
+        for name in ("build-macos", "build-windows", "build-linux"):
+            self.assertNotIn("gh release", yaml.safe_dump(jobs[name]), "Build jobs must not create releases")
+        self.assertNotIn("action-gh-release", raw_text)
         self.assertIn("actions/checkout@v4", raw_text)
         self.assertIn("actions/setup-python@v5", raw_text)
         self.assertIn("actions/upload-artifact@v4", raw_text)
