@@ -2,6 +2,7 @@
 
 import hashlib
 import importlib.util
+import tempfile
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import re
@@ -93,12 +94,13 @@ class RuntimeReportValidationTest(unittest.TestCase):
             "python": "3.14.8",
             "architecture": "arm64",
             "frozen": True,
-            "tcl_version": "9.1.0",
+            "qt_version": "6.12.0",
             "libusb_loads": True,
             "libusb_path": "/path/to/libusb-1.0.dylib",
             "spk_roundtrip": True,
             "certificate_key_parses": True,
             "tls_handshake_verified": True,
+            "updater_images": 6,
             "tls_cipher": "AES256-SHA",
             "tls_version": "TLSv1.2",
         }
@@ -132,6 +134,14 @@ class RuntimeReportValidationTest(unittest.TestCase):
             )
             self.assertFalse(result.get("valid"))
             self.assertIn("tls_handshake_verified", result.get("errors", [""])[0].lower())
+
+    def test_report_without_bundled_updater_images_is_rejected(self):
+        mod = load_build_module()
+        for bad in (0, None, "6"):
+            report = dict(self.valid_report, updater_images=bad)
+            result = mod.validate_runtime_report(report, expected_version="1.0.0", expected_arch="arm64")
+            self.assertFalse(result.get("valid"))
+            self.assertIn("updater_images", result.get("errors", [""])[0])
 
     def test_strict_booleans_libusb_loads_failure(self):
         mod = load_build_module()
@@ -270,3 +280,26 @@ class AppImageToolMetadataTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MacDiskImageTest(unittest.TestCase):
+    def test_dmg_is_named_per_version_and_built_from_a_staged_copy_with_applications_link(self):
+        mod = load_build_module()
+        self.assertEqual(mod.get_dmg_name("1.2.0"), "Sony-Open-PMCA-1.2.0-macos-arm64.dmg")
+        calls, seen = [], {}
+
+        def fake_check_call(cmd):
+            calls.append(cmd)
+            if cmd[0] == "hdiutil":
+                src = Path(cmd[cmd.index("-srcfolder") + 1])
+                seen["applications"] = (src / "Applications").is_symlink()
+                Path(cmd[-1]).write_bytes(b"dmg")
+
+        with tempfile.TemporaryDirectory() as tmp, patch.object(mod.subprocess, "check_call", fake_check_call):
+            dist = Path(tmp)
+            result = mod.package_macos_dmg(dist / "Sony Open PMCA.app", dist, "1.2.0")
+            self.assertEqual(result.name, "Sony-Open-PMCA-1.2.0-macos-arm64.dmg")
+            self.assertTrue(result.exists())
+        self.assertEqual([c[0] for c in calls], ["ditto", "hdiutil"])
+        self.assertIn("UDZO", calls[1])
+        self.assertTrue(seen["applications"])

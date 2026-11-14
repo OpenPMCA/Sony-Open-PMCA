@@ -8,7 +8,7 @@ PyInstaller builds must run on the target operating system. This Apple Silicon h
 
 | Platform | Intended artifact | Driver default | Verification status |
 |---|---|---|---|
-| Apple Silicon macOS | `Sony-Open-PMCA-1.2.0-macos-arm64.zip` | libusb MTP | v1.2.0 passed native `macos-14` CI (Run 38355014314); published ZIP independently passed relocation/runtime, deep/strict ad-hoc signature and 47-module source-parity checks. |
+| Apple Silicon macOS | `Sony-Open-PMCA-1.2.0-macos-arm64.zip` (Cask) and `.dmg` (drag-to-Applications, built by `package`, checked locally: mounts, deep/strict signature) | libusb MTP | v1.2.0 passed native `macos-14` CI (Run 38355014314); published ZIP independently passed relocation/runtime, deep/strict ad-hoc signature and 47-module source-parity checks. |
 | Windows x64 | `Sony-Open-PMCA-1.2.0-windows-x64.exe` | Native Windows Portable Devices, with libusb fallback | v1.2.0 passed native `windows-2022` CI (Run 38355014314), including the final executable runtime diagnostic. |
 | Linux x86_64 | `Sony-Open-PMCA-1.2.0-linux-x86_64.AppImage` | libusb | v1.2.0 passed native `ubuntu-22.04` CI (Run 38355014314), including the final AppImage runtime diagnostic. |
 

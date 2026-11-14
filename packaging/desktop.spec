@@ -92,6 +92,7 @@ datas = [
     (str(root / 'assets' / 'sony-open-pmca.png'), 'assets'),
     (str(root / 'assets' / 'sony-open-pmca.svg'), 'assets'),
     (str(root / 'LICENSE.txt'), '.'),
+    (str(root / 'updatershell' / 'fdat'), 'updatershell/fdat'),
 ]
 
 binaries = [(str(libusb_bin), '.')]
@@ -112,12 +113,12 @@ if sys.platform == 'win32':
     app_icon = str(icon_file) if icon_file.exists() else None
 
     a = Analysis(
-        [str(root / 'pmca-gui.py')],
+        [str(root / 'pmca-app.py')],
         pathex=[str(versionDir), str(root)],
         binaries=binaries,
         datas=datas,
         hiddenimports=hiddenimports,
-        excludes=excludes,
+        excludes=excludes + ['tkinter'],
         runtime_hooks=[str(root / "packaging/runtime_hook_libusb.py")],
     )
     pyz = PYZ(a.pure)
@@ -141,12 +142,12 @@ elif sys.platform.startswith('linux'):
     excludes = ['pmca.usb.driver.windows', 'pmca.usb.driver.osx']
 
     a = Analysis(
-        [str(root / 'pmca-gui.py')],
+        [str(root / 'pmca-app.py')],
         pathex=[str(versionDir), str(root)],
         binaries=binaries,
         datas=datas,
         hiddenimports=hiddenimports,
-        excludes=excludes,
+        excludes=excludes + ['tkinter'],
         runtime_hooks=[str(root / "packaging/runtime_hook_libusb.py")],
     )
     pyz = PYZ(a.pure)

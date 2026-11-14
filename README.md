@@ -50,6 +50,7 @@ Built for Apple Silicon (`arm64`), requiring macOS 14 Sonoma or newer.
   brew tap OpenPMCA/Sony-Open-PMCA https://github.com/OpenPMCA/Sony-Open-PMCA
   brew install --cask sony-open-pmca
   ```
+* **Disk image**: releases after 1.2.0 also ship `Sony-Open-PMCA-<version>-macos-arm64.dmg`; open it and drag the app to Applications.
 * **Manual Download**:
   Download [`Sony-Open-PMCA-1.2.0-macos-arm64.zip`](https://github.com/OpenPMCA/Sony-Open-PMCA/releases/download/v1.2.0/Sony-Open-PMCA-1.2.0-macos-arm64.zip), extract it, and move `Sony Open PMCA.app` to `/Applications`. The Mac build is ad-hoc signed, not notarized; follow macOS's normal security prompts and report an exact refusal rather than disabling Gatekeeper or SIP.
 
@@ -66,6 +67,7 @@ Portable AppImage for 64-bit Linux, built and runtime-tested on Ubuntu 22.04. Ot
   chmod +x Sony-Open-PMCA-1.2.0-linux-x86_64.AppImage
   ./Sony-Open-PMCA-1.2.0-linux-x86_64.AppImage
   ```
+  The AppImage is built on Ubuntu 22.04, so it needs glibc 2.35 or newer. Distributions without FUSE 2 can run it with `--appimage-extract-and-run`.
 
 ---
 
@@ -75,7 +77,7 @@ Portable AppImage for 64-bit Linux, built and runtime-tested on Ubuntu 22.04. Ot
 1. Set Camera USB Mode    → Menu → Setup (wrench) → USB Connection → MTP
 2. Connect Camera to PC   → Use a USB data cable (camera powered on)
 3. Launch Sony Open PMCA  → App automatically detects and connects
-4. Choose an Action       → Info (diagnostics) | Application (install apps) | Activity (logs)
+4. Choose an Action       → Camera (details) | Apps (one-click install) | Activity (log) | Tools (older bodies)
 ```
 
 ### MTP or Mass Storage?
@@ -94,7 +96,7 @@ The macOS desktop defaults to MTP to avoid capturing mounted storage. Choose MTP
 * **Safe App Installation**: Model-eligibility gating prevents switching unsupported cameras into installer mode. Preflights APK package ID, Android API baseline (1–10), and signing certificates.
 * **Built-in App Store**: Direct downloads for 26 curated open-source camera apps (OpenMemories Tweak, BetterManual, RecipeLab, etc.).
 * **Activity Logs**: Batched, searchable logs with level filtering and explicit latest-5,000-line retention/omission notice; Copy/Export describe the retained current-view scope.
-* **Responsive UI**: Native 1160x760 layout with bounded queue work, continuous progress, visible Store keyboard focus and preserved immediate wheel/trackpad behavior. [Measured workloads and limits](docs/ui-performance.md).
+* **Native Qt UI**: sidebar, hairline-separated lists and system controls that follow the OS light/dark theme. One-click install from the Store, an inline progress strip and a 5,000-line Activity log. Layout and module map: [architecture](docs/architecture.md).
 * **Local Download Cancellation**: Cooperatively cancel downloads without replacing existing files or installing an app. Camera writes are not given a false Cancel/rollback promise.
 * **Standalone Binaries**: Self-contained executables for macOS, Windows, and Linux — no Python environment required.
 
@@ -110,7 +112,7 @@ python3 -m venv .venv
 source .venv/bin/activate       # Windows: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 
-python pmca-gui.py              # Launch GUI
+python pmca-app.py              # Launch the desktop app (Qt)
 python -W error::ResourceWarning -m unittest discover -s tests -v
 ```
 

@@ -3,7 +3,7 @@
 
 Actions:
   build: Run PyInstaller for the native platform.
-  package: Produce the native distribution asset (macOS ZIP + Cask, Windows EXE, Linux AppImage).
+  package: Produce the native distribution asset (macOS DMG + ZIP + Cask, Windows EXE, Linux AppImage).
   verify: Execute frozen runtime check (--check-runtime) and strictly validate report fields.
 """
 
@@ -18,6 +18,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import urllib.request
 
 # Pinned upstream build dependencies
@@ -216,6 +217,9 @@ def validate_runtime_report(
         if val is not True:
             errors.append(f"Field '{field}' must be strictly True, got: {val!r}")
 
+    if not isinstance(data.get("updater_images"), int) or data["updater_images"] < 1:
+        errors.append("Field 'updater_images' must be a positive count (updatershell/fdat not bundled)")
+
     # Version check
     actual_ver = data.get("version")
     if actual_ver != expected_version:
@@ -231,10 +235,10 @@ def validate_runtime_report(
                 f"Architecture mismatch: expected '{expected_arch}', got '{actual_arch}'"
             )
 
-    # Tcl check
-    tcl_ver = data.get("tcl_version")
-    if not tcl_ver or not isinstance(tcl_ver, str):
-        errors.append(f"Invalid or missing tcl_version: {tcl_ver!r}")
+    # UI toolkit check
+    qt_ver = data.get("qt_version")
+    if not qt_ver or not isinstance(qt_ver, str):
+        errors.append(f"Invalid or missing qt_version: {qt_ver!r}")
 
     return {"valid": len(errors) == 0, "errors": errors, "report": data}
 
@@ -310,6 +314,28 @@ def compute_sha256(file_path: Path) -> str:
     return h.hexdigest()
 
 
+def get_dmg_name(version: str = None, arch: str = "arm64") -> str:
+    """Return canonical macOS disk image name."""
+    return f"Sony-Open-PMCA-{version or get_version()}-macos-{arch}.dmg"
+
+
+def package_macos_dmg(app_path: Path, dist_dir: Path, version: str = None) -> Path:
+    """Create a compressed drag-to-Applications disk image from a built .app bundle."""
+    dmg_path = dist_dir / get_dmg_name(version)
+    if dmg_path.exists():
+        dmg_path.unlink()
+    with tempfile.TemporaryDirectory(prefix="pmca-dmg-") as staging:
+        staged = Path(staging)
+        # ditto keeps bundle symlinks and the code signature intact
+        subprocess.check_call(["ditto", "--norsrc", str(app_path), str(staged / app_path.name)])
+        (staged / "Applications").symlink_to("/Applications")
+        subprocess.check_call([
+            "hdiutil", "create", "-volname", "Sony Open PMCA", "-srcfolder", str(staged),
+            "-fs", "HFS+", "-format", "UDZO", "-ov", str(dmg_path),
+        ])
+    return dmg_path
+
+
 def package_macos(app_path: Path = None, out_dir: Path = None, version: str = None) -> dict:
     """Package existing macOS .app bundle into deterministic ARM64 ZIP and generate Cask."""
     ver = version or get_version()
@@ -338,6 +364,7 @@ def package_macos(app_path: Path = None, out_dir: Path = None, version: str = No
     subprocess.check_call(["ditto", "-c", "-k", "--norsrc", "--keepParent", str(target_app), str(zip_path)])
 
     sha256_hex = compute_sha256(zip_path)
+    dmg_path = package_macos_dmg(target_app, dist_dir, ver)
 
     # Render and write Casks/sony-open-pmca.rb
     cask_dir = REPO_ROOT / "Casks"
@@ -349,6 +376,8 @@ def package_macos(app_path: Path = None, out_dir: Path = None, version: str = No
     return {
         "zip_path": zip_path,
         "sha256": sha256_hex,
+        "dmg_path": dmg_path,
+        "dmg_sha256": compute_sha256(dmg_path),
         "cask_path": cask_file,
     }
 
@@ -504,12 +533,13 @@ def main():
                 spec = str(REPO_ROOT / "sony-open-pmca.spec")
             else:
                 spec = str(REPO_ROOT / "packaging" / "desktop.spec")
-        subprocess.check_call([sys.executable, "-m", "PyInstaller", spec])
+        subprocess.check_call([sys.executable, "-m", "PyInstaller", "--noconfirm", spec])
 
     elif args.action == "package":
         if sys.platform == "darwin":
             res = package_macos(version=args.version)
             print(f"macOS package created: {res['zip_path']} (SHA-256: {res['sha256']})")
+            print(f"macOS disk image created: {res['dmg_path']} (SHA-256: {res['dmg_sha256']})")
             print(f"Cask updated: {res['cask_path']}")
         elif sys.platform.startswith("linux"):
             res = package_linux_appimage(version=args.version)

@@ -26,17 +26,18 @@ versionDir.mkdir(parents=True, exist_ok=True)
 (versionDir / 'frozenversion.py').write_text('version = %r\n' % version)
 
 a = Analysis(
- [str(root / 'pmca-gui.py')],
- pathex=[str(versionDir)],
+ [str(root / 'pmca-app.py')],
+ pathex=[str(versionDir), str(root)],
  binaries=[(str(Path(libusb).resolve()), '.')],
  datas=[
   (str(root / 'certs/localtest.me.pem'), 'certs'),
   (str(root / 'assets/sony-open-pmca.png'), 'assets'),
   (str(root / 'assets/sony-open-pmca.svg'), 'assets'),
   (str(root / 'LICENSE.txt'), '.'),
+  (str(root / 'updatershell/fdat'), 'updatershell/fdat'),
  ],
  hiddenimports=['usb.backend.libusb1', 'frozenversion'],
- excludes=['pmca.usb.driver.windows'],
+ excludes=['pmca.usb.driver.windows', 'tkinter', 'pmca_app.tests'],
 )
 pyz = PYZ(a.pure)
 exe = EXE(
