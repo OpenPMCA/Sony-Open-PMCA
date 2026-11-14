@@ -253,7 +253,7 @@ class WorkflowStructureTest(unittest.TestCase):
         self.assertIn("build-linux", jobs, "Workflow must have build-linux job")
 
         # Check runners
-        self.assertEqual(jobs["build-macos"].get("runs-on"), "macos-14")
+        self.assertEqual(jobs["build-macos"].get("runs-on"), "macos-15")
         self.assertEqual(jobs["build-windows"].get("runs-on"), "windows-2022")
         self.assertEqual(jobs["build-linux"].get("runs-on"), "ubuntu-22.04")
 
