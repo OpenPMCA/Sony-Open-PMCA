@@ -46,5 +46,22 @@ class StateTest(unittest.TestCase):
   self.assertEqual(st.support_text('ILCE-9999'), 'Unconfirmed model')
 
 
+class BackendCacheTest(unittest.TestCase):
+ def test_cache_path_rejects_traversal_and_stays_in_a_private_directory(self):
+  import os
+  import stat
+  from pmca_app.backend import Backend
+  backend = Backend(driver='libusb')
+  seen = []
+  backend.download = lambda app, path, progress, abort: seen.append(path) or {'path': path}
+  for bad in ('../x', 'a/b', '', 'a b', None):
+   with self.assertRaises(ValueError):
+    backend.download_to_cache({'package': bad})
+  backend.download_to_cache({'package': 'com.example.app'})
+  directory = os.path.dirname(seen[0])
+  self.assertEqual(os.path.basename(seen[0]), 'com.example.app.apk')
+  self.assertEqual(stat.S_IMODE(os.stat(directory).st_mode), 0o700)
+
+
 if __name__ == '__main__':
  unittest.main()

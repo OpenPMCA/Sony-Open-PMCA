@@ -1,6 +1,7 @@
 """Blocking backend operations. Thin, Qt-free wrappers over the pmca package; run them in worker threads."""
 import io
 import os
+import re
 import tempfile
 
 from pmca.apk import ApkParser
@@ -11,9 +12,13 @@ from pmca.platform.backend.usb import UsbPlatformBackend
 from pmca.platform.tweaks import TweakInterface
 
 
+PACKAGE_NAME = re.compile(r'^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$')
+
+
 class Backend(object):
  def __init__(self, driver=None):
   self.driver = driver or cmd.getDefaultDriverName()
+  self._cache_dir = None
 
  # camera
  def poll(self):
@@ -35,10 +40,12 @@ class Backend(object):
   return store.downloadCatalogApp(app, path, progress, abort_event=abort)
 
  def download_to_cache(self, app, progress=None, abort=None):
-  directory = os.path.join(tempfile.gettempdir(), 'sony-open-pmca')
-  os.makedirs(directory, exist_ok=True)
-  path = os.path.join(directory, '%s.apk' % app['package'])
-  return self.download(app, path, progress, abort)
+  package = str(app.get('package') or '')
+  if not PACKAGE_NAME.match(package):
+   raise ValueError('Invalid package name in the catalog: %r' % package)
+  if self._cache_dir is None:
+   self._cache_dir = tempfile.mkdtemp(prefix='sony-open-pmca-')  # unique, owner-only (0700)
+  return self.download(app, os.path.join(self._cache_dir, '%s.apk' % package), progress, abort)
 
  # install
  @staticmethod
