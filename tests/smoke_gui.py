@@ -57,7 +57,7 @@ try:
   assert str(root.infoFrame.infoButton['state']) == 'normal'
 
   notebook = next(widget for widget in root.winfo_children() if widget.winfo_class() == 'TNotebook')
-  assert [notebook.tab(tab, 'text') for tab in notebook.tabs()] == ['Camera', 'Applications', 'Activity']
+  assert [notebook.tab(tab, 'text') for tab in notebook.tabs()] == ['Camera', 'Applications', 'Activity', 'Tweaks']
   assert root.installerFrame.getMode() == root.installerFrame.MODE_APK
 
   # Install button must remain disabled when no APK is selected (P0 contract)

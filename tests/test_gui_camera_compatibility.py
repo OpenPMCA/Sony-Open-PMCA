@@ -605,7 +605,7 @@ class GuiCameraCompatibilityTest(unittest.TestCase):
 
   root.close()
 
- def test_gui_header_and_footer_display_current_and_fixture_versions(self):
+ def test_gui_toolbar_displays_current_and_fixture_versions(self):
   from pmca import __version__ as public_version
   for expected_ver, patch_ctx in [
    (public_version, contextlib.nullcontext()),
@@ -629,8 +629,8 @@ class GuiCameraCompatibilityTest(unittest.TestCase):
       collect_labels(child)
     collect_labels(root)
 
-    self.assertTrue(any(lbl == f'v{expected_ver}' for lbl in labels), f"Header version label must show 'v{expected_ver}', found: {labels}")
-    self.assertTrue(any(lbl == f'Version {expected_ver}' for lbl in labels), f"Footer version label must show 'Version {expected_ver}', found: {labels}")
+    self.assertTrue(any(lbl == expected_ver for lbl in labels), f"Toolbar version label must show '{expected_ver}', found: {labels}")
+    self.assertFalse(any(lbl == f'Version {expected_ver}' for lbl in labels), 'Version is shown once, in the toolbar')
     root.close()
 
  def test_close_and_destroy_cancels_pending_queue_timer_and_aborts_workers(self):

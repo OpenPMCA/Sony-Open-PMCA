@@ -429,33 +429,54 @@ class CatalogAppDownloadTask(BackgroundTask):
 class FirmwareUpdateTask(BackgroundTask):
  """Task to run firmwareUpdateCommand()"""
  def doBefore(self):
-  self.ui.fwUpdateButton.config(state=DISABLED)
-  return self.ui.getSelectedDat()
+  datFile = self.ui.getSelectedDat()
+  if not datFile or not os.path.isfile(datFile):
+   showerror('Cannot update firmware', 'Choose an official Sony firmware .dat file first.')
+   return
+  if not askyesno('Update firmware', 'Write %s to the connected camera?\n\nThis rewrites the camera firmware. Keep power and USB connected until the camera finishes. This path has not been verified on physical hardware in this project.' % os.path.basename(datFile)):
+   return
+  self.ui.master.setCameraBusy(True)
+  return datFile
 
  def do(self, datFile):
+  if not datFile:
+   return False
   try:
-   if datFile:
-    print('')
-    with open(datFile, 'rb') as f:
-     firmwareUpdateCommand(f)
+   print('')
+   with open(datFile, 'rb') as f:
+    firmwareUpdateCommand(f)
+  except CameraBusyException as e:
+   print('Error: %s' % e)
   except Exception:
    traceback.print_exc()
+  return True
 
- def doAfter(self, result):
-  self.ui.fwUpdateButton.config(state=NORMAL)
+ def doAfter(self, ran):
+  if ran:
+   self.ui.master.setCameraBusy(False)
 
 
 class StartPlatformShellTask(BackgroundTask):
- def doBefore(self):
-  self.ui.startUpdaterShellButton.config(state=DISABLED)
-  self.ui.startSenserShellButton.config(state=DISABLED)
+ TITLE = ''
+ CONFIRM = ''
 
- def do(self, arg):
+ def doBefore(self):
+  if not askyesno(self.TITLE, self.CONFIRM):
+   return
+  self.ui.master.setCameraBusy(True)
+  return True
+
+ def do(self, confirmed):
+  if not confirmed:
+   return False
   try:
    print('')
    self.start()
+  except CameraBusyException as e:
+   print('Error: %s' % e)
   except Exception:
    traceback.print_exc()
+  return True
 
  def start(self):
   pass
@@ -474,19 +495,25 @@ class StartPlatformShellTask(BackgroundTask):
 
   backend.stop()
 
- def doAfter(self, result):
-  self.ui.startUpdaterShellButton.config(state=NORMAL)
-  self.ui.startSenserShellButton.config(state=NORMAL)
+ def doAfter(self, ran):
+  if ran:
+   self.ui.master.setCameraBusy(False)
 
 
 class StartUpdaterShellTask(StartPlatformShellTask):
  """Task to run updaterShellCommand() and open TweakDialog"""
+ TITLE = 'Start updater mode'
+ CONFIRM = 'Restart the camera into firmware-update mode to change hidden settings?\n\nFollow the prompts on the camera screen and keep power and USB connected. The installed firmware is not modified. This path has not been verified on physical hardware in this project.'
+
  def start(self):
   updaterShellCommand(complete=lambda dev: self.launchShell(UsbPlatformBackend(dev)))
 
 
 class StartSenserShellTask(StartPlatformShellTask):
  """Task to run senserShellCommand() and open TweakDialog"""
+ TITLE = 'Start service mode'
+ CONFIRM = 'Switch the camera into service mode to change hidden settings?\n\nService mode needs a libusb-accessible Mass Storage connection. Keep power and USB connected. This path has not been verified on physical hardware in this project.'
+
  def start(self):
   senserShellCommand(complete=lambda dev: self.launchShell(SenserPlatformBackend(dev)))
 
@@ -506,6 +533,25 @@ class TweakApplyTask(BackgroundTask):
  def doAfter(self, result):
   self.ui.setState(NORMAL)
   self.ui.cancel()
+
+
+def applyFlatTheme(style, family):
+ """Windows/Linux: flat light palette with a system-blue accent, matching the macOS look."""
+ bg, card, text, muted, accent, line = "#F5F5F7", "#FFFFFF", "#1D1D1F", "#6E6E73", "#0A84FF", "#D2D2D7"
+ style.theme_use("clam")
+ style.configure(".", background=bg, foreground=text, fieldbackground=card, bordercolor=line, lightcolor=bg, darkcolor=bg, focuscolor=accent, font=(family, 10))
+ style.configure("TButton", background=card, bordercolor=line, padding=(10, 4), relief="flat")
+ style.map("TButton", background=[("active", "#E8E8ED"), ("disabled", bg)], foreground=[("disabled", muted)])
+ style.configure("TLabelframe", background=bg, bordercolor=line, relief="solid")
+ style.configure("TLabelframe.Label", background=bg, foreground=text)
+ style.configure("TEntry", fieldbackground=card, bordercolor=line, padding=4)
+ style.configure("TCombobox", fieldbackground=card, bordercolor=line, padding=4)
+ style.configure("Horizontal.TProgressbar", background=accent, troughcolor=line, bordercolor=bg)
+ style.configure("TSeparator", background=line)
+ style.configure("TCheckbutton", background=bg)
+ style.configure("Sidebar.Treeview", background=bg, fieldbackground=bg, foreground=text, borderwidth=0)
+ style.map("Sidebar.Treeview", background=[("selected", accent)], foreground=[("selected", "#FFFFFF")])
+ style.configure("Detail.TLabel", foreground=muted)
 
 
 class MainUi(UiRoot):
@@ -560,10 +606,14 @@ class MainUi(UiRoot):
   self["menu"] = Menu(self)
 
   style = Style(self)
+  family = tkfont.nametofont("TkDefaultFont").actual("family")
   if sys.platform == "darwin" and "aqua" in style.theme_names():
    style.theme_use("aqua")
-  family = tkfont.nametofont("TkDefaultFont").actual("family")
-  style.configure("Title.TLabel", font=(family, 15, "bold"))
+  elif "clam" in style.theme_names():
+   applyFlatTheme(style, family)
+  style.configure("Title.TLabel", font=(family, 17, "bold"))
+  style.configure("Sidebar.Treeview", rowheight=34, font=(family, 13), borderwidth=0)
+  style.layout("Sidebar.Treeview", [("Treeview.treearea", {"sticky": "nswe"})])
   style.configure("Section.TLabel", font=(family, 13, "bold"))
   style.configure("TLabelframe.Label", font=(family, 13, "bold"))
   style.configure("Subheading.TLabel", font=(family, 12, "bold"))
@@ -571,47 +621,51 @@ class MainUi(UiRoot):
   style.layout("Hidden.TNotebook.Tab", [])
   style.configure("Hidden.TNotebook", borderwidth=0, highlightthickness=0)
 
-  # Global Header (52px)
-  header = Frame(self, padding=(16, 8))
+  # Toolbar: brand left, camera status right
+  header = Frame(self, padding=(20, 12, 20, 10))
   header.pack(side=TOP, fill=X)
 
   brandFrame = Frame(header)
   brandFrame.pack(side=LEFT)
   imagePath = os.path.join(scriptRoot, "assets/sony-open-pmca.png")
-  if not os.path.isfile(imagePath):
-   imagePath = os.path.join(scriptRoot, "assets/sony-open-pmca.png")
   if installerOnly and os.path.isfile(imagePath):
-   self.logoImage = PhotoImage(master=self, file=imagePath).subsample(18, 18)
-   Label(brandFrame, image=self.logoImage).pack(side=LEFT, padx=(0, 8))
+   self.logoImage = PhotoImage(master=self, file=imagePath).subsample(24, 24)
+   Label(brandFrame, image=self.logoImage).pack(side=LEFT, padx=(0, 10))
   Label(brandFrame, text="Sony Open PMCA", style="Title.TLabel").pack(side=LEFT)
-  Label(brandFrame, text="v%s" % version, style="Detail.TLabel").pack(side=LEFT, padx=(6, 0))
+  Label(brandFrame, text=version, style="Detail.TLabel").pack(side=LEFT, padx=(8, 0), pady=(3, 0))
 
   statusFrame = Frame(header)
   statusFrame.pack(side=RIGHT)
   self.usbStatusVar = StringVar(value="○ Camera Disconnected")
-  statusLabel = Label(statusFrame, textvariable=self.usbStatusVar, style="Detail.TLabel")
-  statusLabel.pack(side=LEFT, padx=(0, 8))
+  self.usbStatusText = StringVar()
+  self.statusDot = Label(statusFrame, text="●", style="Detail.TLabel")
+  self.statusDot.pack(side=LEFT, padx=(0, 6))
+  Label(statusFrame, textvariable=self.usbStatusText, style="Detail.TLabel").pack(side=LEFT, padx=(0, 12))
   self.reconnectButton = Button(statusFrame, text="Reconnect", command=self.reconnectCamera, padding=(8, 3))
   self.reconnectButton.pack(side=LEFT)
+  self.usbStatusVar.trace_add("write", lambda *_: self._renderUsbStatus())
+  self._renderUsbStatus()
 
-  # Footer (30px)
-  footer = Frame(self, padding=(18, 4, 18, 6))
+  Separator(self, orient=HORIZONTAL).pack(side=TOP, fill=X)
+
+  # Footer: single status line
+  footer = Frame(self, padding=(20, 6, 20, 8))
   footer.pack(side=BOTTOM, fill=X)
   self.statusVar = StringVar(value="Idle.")
   Label(footer, textvariable=self.statusVar, style="Detail.TLabel").pack(side=LEFT)
-  Label(footer, text="Version %s" % version, style="Detail.TLabel").pack(side=RIGHT)
 
-  # Sidebar (156px) - Exactly 3 navigation items
-  self.sidebar = Frame(self, padding=(8, 10), width=156)
-  self.sidebar.pack(side=LEFT, fill=Y, padx=(10, 0), pady=(0, 4))
+  # Sidebar: source list, selection follows the notebook
+  self.sidebar = Frame(self, padding=(10, 12, 0, 10), width=190)
+  self.sidebar.pack(side=LEFT, fill=Y)
   self.sidebar.pack_propagate(False)
 
-  self.navButtons = []
-  navItems = [("Info", 0), ("Application", 1), ("Logs", 2)]
-  for label, idx in navItems:
-   btn = Button(self.sidebar, text=label, command=lambda i=idx: self.selectTab(i), padding=(10, 4))
-   btn.pack(fill=X, pady=2)
-   self.navButtons.append((btn, label))
+  self.navLabels = ["Camera", "Applications", "Activity", "Tweaks"]
+  self.navTree = Treeview(self.sidebar, show="tree", selectmode="browse", style="Sidebar.Treeview")
+  self.navTree.column("#0", stretch=True)
+  for idx, label in enumerate(self.navLabels):
+   self.navTree.insert("", END, iid=str(idx), text="  " + label)
+  self.navTree.pack(fill=BOTH, expand=True)
+  self.navTree.bind("<<TreeviewSelect>>", self._onNavTreeSelect)
 
   # Central Notebook (Hidden Tabs)
   self.notebook = Notebook(self, padding=(8, 0, 10, 2), style="Hidden.TNotebook")
@@ -621,10 +675,12 @@ class MainUi(UiRoot):
   self.infoFrame = InfoFrame(self, padding=(14, 6))
   self.installerFrame = InstallerFrame(self, padding=(10, 4))
   self.activityFrame = Frame(self, padding=16)
+  self.tweaksFrame = TweaksFrame(self, padding=(14, 6))
 
   self.notebook.add(self.infoFrame, text="Camera")
   self.notebook.add(self.installerFrame, text="Applications")
   self.notebook.add(self.activityFrame, text="Activity")
+  self.notebook.add(self.tweaksFrame, text="Tweaks")
   self.notebook.select(self.installerFrame)
 
   # Redesigned Logs View
@@ -671,7 +727,7 @@ class MainUi(UiRoot):
   self._setupNavShortcuts()
 
  def _setupNavShortcuts(self):
-  for idx in (0, 1, 2):
+  for idx in (0, 1, 2, 3):
    key_num = idx + 1
    try:
     if sys.platform == "darwin":
@@ -681,7 +737,7 @@ class MainUi(UiRoot):
     pass
 
  def _onNavShortcut(self, idx):
-  if 0 <= idx < len(getattr(self, "navButtons", [])):
+  if 0 <= idx < len(getattr(self, "navLabels", [])):
    self.selectTab(idx)
   return "break"
 
@@ -757,11 +813,23 @@ class MainUi(UiRoot):
   self.updateNavHighlight()
 
  def updateNavHighlight(self):
-  if not hasattr(self, "navButtons") or not self.navButtons:
+  if not hasattr(self, "navTree"):
    return
   current = self.notebook.index(self.notebook.select()) if self.notebook.select() else 0
-  for i, (btn, baseLabel) in enumerate(self.navButtons):
-   btn.config(text=("• " + baseLabel) if i == current else baseLabel)
+  if self.navTree.selection() != (str(current),):
+   self.navTree.selection_set(str(current))
+
+ def _onNavTreeSelect(self, event=None):
+  sel = self.navTree.selection()
+  if sel and self.notebook.index(self.notebook.select()) != int(sel[0]):
+   self.notebook.select(int(sel[0]))
+
+ def _renderUsbStatus(self):
+  text = self.usbStatusVar.get()
+  connected = text.startswith("●")
+  self.usbStatusText.set(text.lstrip("●○ ").strip() if text[:1] in "●○" else text)
+  warn = text.startswith("○") and "Disconnected" not in text
+  self.statusDot.configure(foreground="#34C759" if connected else "#FF9F0A" if warn else "#8E8E93")
 
  def toggleAutoScroll(self):
   self.autoScroll = not getattr(self, "autoScroll", True)
@@ -925,6 +993,8 @@ class MainUi(UiRoot):
    if hasattr(self, "installerFrame") and hasattr(self.installerFrame, "updateCameraStatus"):
     self.installerFrame.updateCameraStatus(False, installSupported=False, installReason=self.supportReason)
 
+  if hasattr(self, "tweaksFrame"):
+   self.tweaksFrame.updateCamera(info if (appConnected or physical) else None)
   self.setCameraBusy(self.cameraBusy)
 
  def reconnectCamera(self):
@@ -1221,6 +1291,8 @@ class MainUi(UiRoot):
    search.config(state=DISABLED if any_busy else NORMAL)
   if hasattr(self, "reconnectButton"):
    self.reconnectButton.config(state=DISABLED if self.cameraBusy else NORMAL)
+  if hasattr(self, "tweaksFrame"):
+   self.tweaksFrame.updateState()
   if hasattr(self.installerFrame, "setStoreBusy"):
    self.installerFrame.setStoreBusy(any_busy)
   if hasattr(self.installerFrame, "cancelDownloadButton"):
@@ -1522,7 +1594,7 @@ class InfoFrame(UiFrame):
   # Controls pinned at BOTTOM!
   btnBox = Frame(self)
   btnBox.pack(side=BOTTOM, fill=X, pady=(4, 0))
-  self.infoButton = Button(btnBox, text="Get camera info", command=InfoTask(self).run, padding=(10, 3))
+  self.infoButton = Button(btnBox, text="Get camera info", command=InfoTask(self).run, padding=(10, 3), default="active")
   self.infoButton.pack(side=LEFT, padx=(0, 8))
   if hasattr(self.master, "reconnectCamera"):
    Button(btnBox, text="Reconnect Camera", command=self.master.reconnectCamera, padding=(8, 3)).pack(side=LEFT)
@@ -1944,7 +2016,7 @@ class InstallerFrame(UiFrame):
   self.apkSelectButton.pack(side=LEFT, padx=(0, 4))
   self.apkRevealButton = Button(apkSelectRow, text="Reveal…", command=self.revealApk, state=DISABLED)
   self.apkRevealButton.pack(side=LEFT, padx=(0, 6))
-  self.installButton = Button(apkSelectRow, text="Install APK to Camera", command=InstallTask(self).run, padding=(10, 3), state=DISABLED)
+  self.installButton = Button(apkSelectRow, text="Install APK to Camera", command=InstallTask(self).run, padding=(10, 3), state=DISABLED, default="active")
   self.installButton.pack(side=RIGHT)
 
   self.apkSummary = StringVar(value="No APK selected. Choose a local file above or click Download APK on any app below.")
@@ -2654,22 +2726,40 @@ class InstallerFrame(UiFrame):
    self.progressText.set("Installation did not complete. Check Activity for details.")
 
 
-class FirmwareFrame(UiFrame):
+class TweaksFrame(UiFrame):
+ """Updater/service-mode tweaks and firmware update, for bodies without PMCA apps."""
+ NO_MODEL = ('', 'DSC', 'Camcorder', 'Camera Busy', 'Sony Camera')
+
  def __init__(self, parent, **kwargs):
   UiFrame.__init__(self, parent, **kwargs)
 
-  datFrame = Labelframe(self, padding=5)
-  datFrame['labelwidget'] = Label(datFrame, text='Firmware file')
+  Label(self, text="Tweaks", style="Section.TLabel").pack(anchor=W)
+  self.supportVar = StringVar(value="No camera detected.")
+  Label(self, textvariable=self.supportVar, style="Detail.TLabel").pack(anchor=W, pady=(2, 8))
+
+  self.advancedVar = IntVar(value=0)
+  self.advancedCheck = Checkbutton(self, text="Advanced mode", variable=self.advancedVar, command=self.updateState)
+  self.advancedCheck.pack(anchor=W, pady=(0, 8))
+
+  settingsFrame = Labelframe(self, text="Hidden settings", padding=8)
+  settingsFrame.pack(fill=X, pady=(0, 8))
+  self.startUpdaterShellButton = Button(settingsFrame, text='Start tweaking (updater mode)', command=StartUpdaterShellTask(self).run, padding=5)
+  self.startUpdaterShellButton.pack(fill=X)
+  self.startSenserShellButton = Button(settingsFrame, text='Start tweaking (service mode)', command=StartSenserShellTask(self).run, padding=5)
+  self.startSenserShellButton.pack(fill=X, pady=(5, 0))
+
+  datFrame = Labelframe(self, text="Firmware file", padding=8)
   datFrame.pack(fill=X)
-
-  self.datFile = Entry(datFrame)
+  datRow = Frame(datFrame)
+  datRow.pack(fill=X)
+  self.datFile = Entry(datRow)
   self.datFile.pack(side=LEFT, fill=X, expand=True)
-
-  self.datSelectButton = Button(datFrame, text='Open...', command=self.openDat)
-  self.datSelectButton.pack()
-
-  self.fwUpdateButton = Button(self, text='Update firmware', command=FirmwareUpdateTask(self).run, padding=5)
+  self.datSelectButton = Button(datRow, text='Open…', command=self.openDat)
+  self.datSelectButton.pack(side=LEFT, padx=(6, 0))
+  self.fwUpdateButton = Button(datFrame, text='Update firmware', command=FirmwareUpdateTask(self).run, padding=5)
   self.fwUpdateButton.pack(fill=X, pady=(5, 0))
+
+  self.updateState()
 
  def openDat(self):
   fn = askopenfilename(filetypes=[('Firmware files', '.dat'), ('All files', '.*')])
@@ -2680,16 +2770,27 @@ class FirmwareFrame(UiFrame):
  def getSelectedDat(self):
   return self.datFile.get()
 
+ def updateCamera(self, info):
+  """Report whether a bundled updater image matches the detected body."""
+  info = info or {}
+  model = str(info.get("model") or info.get("name") or "").strip()
+  if not info:
+   text = "No camera detected."
+  elif model in self.NO_MODEL:
+   text = "Camera model unknown."
+  elif getFdat(model):
+   text = "%s: updater image available." % model
+  else:
+   text = "%s: no updater image for this model." % model
+  self.supportVar.set(text)
 
-class UpdaterShellFrame(UiFrame):
- def __init__(self, parent, **kwargs):
-  UiFrame.__init__(self, parent, **kwargs)
-
-  self.startUpdaterShellButton = Button(self, text='Start tweaking (updater mode)', command=StartUpdaterShellTask(self).run, padding=5)
-  self.startUpdaterShellButton.pack(fill=X)
-
-  self.startSenserShellButton = Button(self, text='Start tweaking (service mode)', command=StartSenserShellTask(self).run, padding=5)
-  self.startSenserShellButton.pack(fill=X, pady=(5, 0))
+ def updateState(self):
+  master = self.master
+  busy = bool(getattr(master, "cameraBusy", False) or getattr(master, "downloadBusy", False))
+  state = NORMAL if self.advancedVar.get() and not busy else DISABLED
+  for widget in (self.startUpdaterShellButton, self.startSenserShellButton, self.datFile, self.datSelectButton, self.fwUpdateButton):
+   widget.config(state=state)
+  self.advancedCheck.config(state=DISABLED if busy else NORMAL)
 
 
 class TweakDialog(UiDialog):
@@ -2782,6 +2883,7 @@ def checkRuntime(outFile):
   'libusb_path': libusb_path,
   'spk_roundtrip': spk.parse(spk.dump(sample)) == sample,
   'certificate_key_parses': bool(chain.x509List and key),
+  'updater_images': len(list(getFdats())),
  }
  try:
   from pmca.marketserver.server import verify_tls_handshake
