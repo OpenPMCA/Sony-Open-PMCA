@@ -60,7 +60,8 @@ class BackendCacheTest(unittest.TestCase):
   backend.download_to_cache({'package': 'com.example.app'})
   directory = os.path.dirname(seen[0])
   self.assertEqual(os.path.basename(seen[0]), 'com.example.app.apk')
-  self.assertEqual(stat.S_IMODE(os.stat(directory).st_mode), 0o700)
+  if os.name == 'posix':  # Windows has no POSIX mode bits
+   self.assertEqual(stat.S_IMODE(os.stat(directory).st_mode), 0o700)
 
 
 if __name__ == '__main__':
